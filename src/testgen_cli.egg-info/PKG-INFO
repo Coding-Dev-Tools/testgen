@@ -1,0 +1,27 @@
+Metadata-Version: 2.4
+Name: testgen-cli
+Version: 0.1.0
+Summary: Automated test generator — scans Python source files and generates pytest stubs with sensible defaults
+Author: Revenue Holdings
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/Coding-Dev-Tools/testgen
+Project-URL: Repository, https://github.com/Coding-Dev-Tools/testgen
+Keywords: testing,test-generator,pytest,automation,qa,cli
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Quality Assurance
+Classifier: Topic :: Software Development :: Testing
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.1.0
+Requires-Dist: rich>=15.0.0
+Requires-Dist: astroid>=3.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.4.0; extra == "dev"
