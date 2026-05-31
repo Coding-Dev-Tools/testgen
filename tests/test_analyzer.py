@@ -1,9 +1,10 @@
 """Tests for the AST analyzer module."""
 
-import pytest
 from pathlib import Path
-from testgen.analyzer import analyze_file, ModuleAnalyzer, FuncInfo, ClassInfo, ParamInfo
 
+import pytest
+
+from testgen.analyzer import analyze_file
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 

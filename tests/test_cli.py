@@ -1,8 +1,9 @@
 """Tests for the testgen CLI."""
 
+
 import pytest
-from pathlib import Path
 from click.testing import CliRunner
+
 from testgen.cli import cli
 
 
@@ -57,6 +58,29 @@ class TestCLIGenerate:
     def test_generate_max_tests(self, runner, sample_project):
         result = runner.invoke(cli, ["generate", str(sample_project), "--dry-run", "--max-tests", "1"])
         assert result.exit_code == 0
+
+    def test_generate_fixture_style_class(self, runner, sample_project):
+        result = runner.invoke(cli, ["generate", str(sample_project), "--dry-run", "--fixture-style", "class"])
+        assert result.exit_code == 0
+        assert "@pytest.fixture" in result.output
+
+    def test_generate_fixture_style_both(self, runner, sample_project):
+        result = runner.invoke(cli, ["generate", str(sample_project), "--dry-run", "--fixture-style", "both"])
+        assert result.exit_code == 0
+        assert "@pytest.fixture" in result.output
+        assert "test_Service_instantiation" in result.output
+
+    def test_generate_hypothesis(self, runner, sample_project):
+        result = runner.invoke(cli, ["generate", str(sample_project), "--dry-run", "--hypothesis"])
+        assert result.exit_code == 0
+        assert "@given" in result.output
+
+    def test_generate_diff_no_git(self, runner, sample_project):
+        """--diff on non-git dir should still work (falls through to all files)."""
+        result = runner.invoke(cli, ["generate", str(sample_project), "--dry-run", "--diff"])
+        assert result.exit_code == 0
+        # Without git, diff returns empty → all files are processed
+        assert "test_" in result.output
 
 
 class TestCLIScan:

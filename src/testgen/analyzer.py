@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import ast
-import inspect
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 
 @dataclass
@@ -207,12 +205,12 @@ class ModuleAnalyzer:
 
         # Module-level imports
         for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.Import | ast.ImportFrom):
                 module_info.imports.append(ast.unparse(node))
 
         # Walk top-level nodes
         for node in ast.iter_child_nodes(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 func = self._parse_function(node)
                 if func:
                     module_info.functions.append(func)
@@ -300,7 +298,7 @@ class ModuleAnalyzer:
 
         # Parse methods
         for stmt in node.body:
-            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef):
                 func = self._parse_function(stmt, parent_class=name)
                 if func:
                     cls.methods.append(func)

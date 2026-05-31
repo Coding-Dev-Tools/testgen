@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import click
 from rich.console import Console
 from rich.table import Table
 
-from .analyzer import ModuleAnalyzer, analyze_file
-from .generator import GeneratorConfig, PytestStubGenerator, generate_test
+from .analyzer import ModuleAnalyzer
+from .diff_parser import get_changed_files, get_changed_functions
+from .generator import GeneratorConfig, PytestStubGenerator
 
 console = Console()
 
@@ -41,9 +41,7 @@ def _is_source_file(path: Path) -> bool:
     if path.name == "conftest.py":
         return False
     # Skip setup.py
-    if path.name == "setup.py":
-        return False
-    return True
+    return path.name != "setup.py"
 
 
 def _compute_test_path(source_path: Path, project_root: Path | None = None) -> Path:
@@ -67,6 +65,51 @@ def _compute_test_path(source_path: Path, project_root: Path | None = None) -> P
         return source_path.parent / f"test_{source_path.stem}.py"
 
 
+def _filter_by_diff(
+    files: list[Path],
+    target: Path,
+) -> list[Path]:
+    """Filter source files to only those changed in git diff."""
+    changed_files = get_changed_files(target)
+    if not changed_files:
+        return files
+    # Normalize paths for comparison
+    changed_stems = {f.stem for f in changed_files if f.suffix == ".py"}
+    return [f for f in files if f.stem in changed_stems]
+
+
+def _filter_module_by_diff(
+    module,
+    target: Path,
+):
+    """Remove functions/classes from module info that weren't changed in git diff."""
+    changed = get_changed_functions(target)
+    if not changed:
+        return module  # nothing filtered
+
+    # Build set of changed names for this module's file
+    changed_names = {name for path, name in changed}
+
+    # Filter functions
+    module.functions = [f for f in module.functions if f.name in changed_names]
+
+    # Filter classes (keep class if name changed, or if any method changed)
+    filtered_classes = []
+    for cls in module.classes:
+        if cls.name in changed_names:
+            filtered_classes.append(cls)
+        else:
+            # Keep class if any of its methods were changed
+            method_names = {m.name for m in cls.methods}
+            if method_names & changed_names:
+                # Only keep changed methods
+                cls.methods = [m for m in cls.methods if m.name in changed_names]
+                filtered_classes.append(cls)
+    module.classes = filtered_classes
+
+    return module
+
+
 # ── Commands ─────────────────────────────────────────────────────────────────
 
 
@@ -87,6 +130,14 @@ def cli():
 @click.option("--none-checks/--no-none-checks", default=True, help="Generate None-input tests.")
 @click.option("--type-validation/--no-type-validation", default=True, help="Generate return-type tests.")
 @click.option("--docstring-tests/--no-docstring-tests", default=True, help="Generate docstring-based tests.")
+@click.option("--hypothesis/--no-hypothesis", default=False, help="Generate Hypothesis property-based tests.")
+@click.option(
+    "--fixture-style",
+    type=click.Choice(["function", "class", "both"]),
+    default="function",
+    help="Fixture style: function (inline), class (fixtures), or both.",
+)
+@click.option("--diff/--no-diff", default=False, help="Only generate tests for git-changed functions.")
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None, help="Output directory for test files.")
 @click.option("--overwrite/--no-overwrite", default=False, help="Overwrite existing test files.")
 @click.option("--dry-run/--no-dry-run", default=False, help="Print generated tests without writing.")
@@ -100,6 +151,9 @@ def generate(
     none_checks: bool,
     type_validation: bool,
     docstring_tests: bool,
+    hypothesis: bool,
+    fixture_style: str,
+    diff: bool,
     output: Path | None,
     overwrite: bool,
     dry_run: bool,
@@ -110,12 +164,21 @@ def generate(
         console.print("[yellow]No Python source files found.[/yellow]")
         return
 
+    # If --diff, filter to only changed files
+    if diff:
+        files = _filter_by_diff(files, target)
+        if not files:
+            console.print("[yellow]No changed Python files found in git diff.[/yellow]")
+            return
+
     analyzer = ModuleAnalyzer(include_private=include_private, include_dunder=include_dunder)
     config = GeneratorConfig(
+        fixture_style=fixture_style,
         include_edge_cases=edge_cases,
         include_none_checks=none_checks,
         include_type_validation=type_validation,
         include_docstring_tests=docstring_tests,
+        include_hypothesis=hypothesis,
         max_tests_per_func=max_tests,
         overwrite=overwrite,
     )
@@ -131,6 +194,10 @@ def generate(
             console.print(f"[red]Syntax error in {src_file}: {e}[/red]")
             continue
 
+        # If --diff, filter to only changed functions/classes
+        if diff:
+            module = _filter_module_by_diff(module, target)
+
         test_code = generator.generate(module)
         test_count = test_code.count("def test_")
 
@@ -143,10 +210,7 @@ def generate(
             console.print(test_code)
         else:
             # Determine output path
-            if output:
-                out_path = output / f"test_{src_file.stem}.py"
-            else:
-                out_path = _compute_test_path(src_file)
+            out_path = output / f"test_{src_file.stem}.py" if output else _compute_test_path(src_file)
 
             if out_path.exists() and not overwrite:
                 console.print(f"[yellow]Skipping {out_path} (exists, use --overwrite)[/yellow]")
@@ -208,7 +272,7 @@ def scan(target: Path, recursive: bool, include_private: bool):
             for method in cls.methods:
                 params = ", ".join(p.name for p in method.params if p.name not in ("self", "cls"))
                 ret = method.return_annotation or "-"
-                table.add_row(f"  {method.kind}", method.name, params or "-", ret, str(method.line_number))
+                table.add_row(f" {method.kind}", method.name, params or "-", ret, str(method.line_number))
                 total_methods += 1
 
         console.print(table)

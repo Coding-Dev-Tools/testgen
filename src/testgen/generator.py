@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import keyword
 import re
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
 
 from .analyzer import ClassInfo, FuncInfo, ModuleInfo, ParamInfo
 
@@ -40,6 +37,18 @@ TYPE_IMPORTS: dict[str, str] = {
 
 SIMPLE_TYPE_PATTERN = re.compile(r"^[A-Z][a-zA-Z0-9]*$")
 
+# ── Hypothesis strategy mapping ───────────────────────────────────────────────
+
+HYPOTHESIS_STRATEGIES: dict[str, str] = {
+    "int": "st.integers()",
+    "float": "st.floats(allow_nan=False, allow_infinity=False)",
+    "str": "st.text()",
+    "bool": "st.booleans()",
+    "list": "st.lists(st.none())",
+    "dict": "st.dictionaries(st.text(), st.none())",
+    "bytes": "st.binary()",
+}
+
 
 @dataclass
 class GeneratorConfig:
@@ -50,6 +59,7 @@ class GeneratorConfig:
     include_edge_cases: bool = True
     include_type_validation: bool = True
     include_none_checks: bool = True
+    include_hypothesis: bool = False
     max_tests_per_func: int = 6
     overwrite: bool = False
     header_comment: bool = True
@@ -62,11 +72,13 @@ class PytestStubGenerator:
         self.config = config or GeneratorConfig()
         self._needed_imports: set[str] = set()
         self._needed_from_imports: dict[str, set[str]] = {}
+        self._fixtures: list[str] = []  # collected fixture definitions
 
     def generate(self, module: ModuleInfo) -> str:
         """Generate a complete test file for a module."""
         self._needed_imports = set()
         self._needed_from_imports = {}
+        self._fixtures = []
 
         lines: list[str] = []
 
@@ -90,7 +102,7 @@ class PytestStubGenerator:
         for cls in module.classes:
             test_items.extend(self._generate_class_tests(cls, module))
 
-        if not test_items:
+        if not test_items and not self._fixtures:
             lines.append("# No testable units found")
             return "\n".join(lines)
 
@@ -99,6 +111,12 @@ class PytestStubGenerator:
         lines.extend(import_lines)
         lines.append("")
         lines.append("")
+
+        # Add fixtures (if using class fixture style)
+        if self._fixtures and self.config.fixture_style in ("class", "both"):
+            lines.extend("\n\n".join(self._fixtures).split("\n"))
+            lines.append("")
+            lines.append("")
 
         # Add test items
         lines.extend("\n\n".join(test_items).split("\n"))
@@ -161,15 +179,25 @@ class PytestStubGenerator:
             tests.append(self._gen_docstring_test(func, func_label, module))
             test_count += 1
 
+        # 6. Hypothesis property-based test
+        if self.config.include_hypothesis and self._has_hypothesis_params(func) and test_count < self.config.max_tests_per_func:
+            tests.append(self._gen_hypothesis_test(func, func_label, module))
+            test_count += 1
+
         return tests
 
     def _generate_class_tests(self, cls: ClassInfo, module: ModuleInfo) -> list[str]:
         """Generate test cases for a class and its methods."""
         tests: list[str] = []
 
-        # Class instantiation test
+        # Class instantiation test (or fixture if class fixture style)
         if not cls.is_abstract:
-            tests.append(self._gen_class_instantiation_test(cls, module))
+            if self.config.fixture_style in ("class", "both"):
+                self._gen_class_fixture(cls, module)
+                if self.config.fixture_style == "both":
+                    tests.append(self._gen_class_instantiation_test(cls, module))
+            else:
+                tests.append(self._gen_class_instantiation_test(cls, module))
 
         # Method tests
         for method in cls.methods:
@@ -180,23 +208,96 @@ class PytestStubGenerator:
 
         return tests
 
+    # ── Fixture generation ─────────────────────────────────────────────────────
+
+    def _gen_class_fixture(self, cls: ClassInfo, module: ModuleInfo) -> None:
+        """Generate a @pytest.fixture for a class and register it."""
+        fixture_name = cls.name.lower()
+        init_args = self._build_init_args(cls)
+
+        lines = [
+            "@pytest.fixture",
+            f"def {fixture_name}():",
+            f'    """Fixture providing a {cls.name} instance."""',
+            f"    return {cls.name}({init_args})",
+        ]
+        self._fixtures.append("\n".join(lines))
+
+    # ── Hypothesis test generation ─────────────────────────────────────────────
+
+    def _has_hypothesis_params(self, func: FuncInfo) -> bool:
+        """Check if a function has params that can benefit from Hypothesis."""
+        return any(
+            p.annotation in HYPOTHESIS_STRATEGIES
+            for p in func.params
+            if p.name not in ("self", "cls")
+        )
+
+    def _gen_hypothesis_test(self, func: FuncInfo, label: str, module: ModuleInfo) -> str:
+        """Generate a Hypothesis property-based test stub."""
+        self._add_from_import("hypothesis", "given")
+        self._add_from_import("hypothesis.strategies", "st")
+
+        test_name = f"test_{label}_property_based"
+
+        # Build @given decorators
+        given_parts: list[str] = []
+        param_strs: list[str] = []
+        for p in func.params:
+            if p.name in ("self", "cls"):
+                continue
+            if p.is_var_positional or p.is_var_keyword:
+                continue
+            strategy = HYPOTHESIS_STRATEGIES.get(p.annotation or "", "st.none()")
+            given_parts.append(strategy)
+            param_strs.append(p.name)
+
+        given_decorator = ", ".join(given_parts)
+        given_line = f"@given({given_decorator})"
+        param_line = ", ".join(param_strs)
+
+        call_expr = self._build_call_expr(func, param_line)
+
+        ret_assert = ""
+        if func.return_annotation:
+            ret = func.return_annotation
+            stripped = ret.replace(" | None", "")
+            if stripped.startswith("Optional[") and stripped.endswith("]"):
+                stripped = stripped[len("Optional["):-1]
+            if stripped not in ("None", "Any"):
+                base_type = stripped.split("[")[0] if "[" in stripped else stripped
+                if base_type in ("dict", "list", "set", "tuple", "frozenset", "str", "int", "float", "bool", "bytes"):
+                    ret_assert = f"    assert isinstance(result, {base_type})"
+
+        lines = [
+            given_line,
+            f"def {test_name}({param_line}):",
+            f'    """Property-based test for {func.name}."""',
+            f"    result = {call_expr}",
+        ]
+        if ret_assert:
+            lines.append(ret_assert)
+        else:
+            lines.append("    # TODO: add property assertions")
+
+        return "\n".join(lines)
+
+    # ── Existing test generators (unchanged logic) ────────────────────────────
+
     def _gen_basic_call_test(self, func: FuncInfo, label: str, module: ModuleInfo) -> str:
         """Generate a test that calls the function with default args."""
         test_name = f"test_{label}_runs"
         args_str = self._build_call_args(func)
         call_expr = self._build_call_expr(func, args_str)
 
-        if func.docstring:
-            doc_comment = f"    # {func.docstring.split(chr(10))[0].strip()}"
-        else:
-            doc_comment = ""
+        doc_comment = f" # {func.docstring.split(chr(10))[0].strip()}" if func.docstring else ""
 
         lines = [
             f"def {test_name}():",
             f'    """Test that {func.name} runs without error."""',
             doc_comment,
             f"    result = {call_expr}",
-            f"    # TODO: assert specific behavior",
+            "    # TODO: assert specific behavior",
         ]
         return "\n".join(line for line in lines if line.strip())
 
@@ -250,7 +351,7 @@ class PytestStubGenerator:
             f"def {test_name}():",
             f'    """Test {func.name} with None for optional params — should not crash."""',
             f"    result = {call_expr}",
-            f"    # Should handle None gracefully or raise a clear error",
+            "    # Should handle None gracefully or raise a clear error",
         ]
         return "\n".join(lines)
 
@@ -264,7 +365,7 @@ class PytestStubGenerator:
             f"def {test_name}():",
             f'    """Test {func.name} with edge-case inputs."""',
             f"    result = {call_expr}",
-            f"    # TODO: verify edge-case handling",
+            "    # TODO: verify edge-case handling",
         ]
         return "\n".join(lines)
 
@@ -277,7 +378,7 @@ class PytestStubGenerator:
             f"def {test_name}():",
             f'    """Test {func.name} — verify docstring behavior."""',
             f"    # Docstring: {doc_first_line}",
-            f"    # TODO: implement test based on documented behavior",
+            "    # TODO: implement test based on documented behavior",
         ]
         return "\n".join(lines)
 
@@ -300,7 +401,7 @@ class PytestStubGenerator:
                 lines.append(f"    # Requires: {', '.join(p.name for p in required)}")
 
         lines.append(f"    instance = {cls.name}({init_args})")
-        lines.append(f"    assert instance is not None")
+        lines.append("    assert instance is not None")
 
         return "\n".join(lines)
 
@@ -309,10 +410,12 @@ class PytestStubGenerator:
     def _build_call_expr(self, func: FuncInfo, args_str: str) -> str:
         """Build a function call expression string."""
         if func.parent_class and func.kind == "method":
+            # If using fixture style, use fixture name instead of Class(...)
+            if self.config.fixture_style in ("class", "both"):
+                fixture_name = func.parent_class.lower()
+                return f"{fixture_name}.{func.name}({args_str})"
             return f"{func.parent_class}(...).{func.name}({args_str})"
-        elif func.parent_class and func.kind == "classmethod":
-            return f"{func.parent_class}.{func.name}({args_str})"
-        elif func.parent_class and func.kind == "staticmethod":
+        elif func.parent_class and func.kind in ("classmethod", "staticmethod"):
             return f"{func.parent_class}.{func.name}({args_str})"
         else:
             return f"{func.name}({args_str})"
