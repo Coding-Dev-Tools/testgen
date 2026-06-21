@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 import click
 from rich.console import Console
