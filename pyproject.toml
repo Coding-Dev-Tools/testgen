@@ -9,7 +9,7 @@ description = "Automated test generator — scans Python source files and genera
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{name = "Revenue Holdings"}]
+authors = [{name = "DevForge"}]
 keywords = ["testing", "test-generator", "pytest", "automation", "qa", "cli"]
 classifiers = [
   "Development Status :: 4 - Beta",
