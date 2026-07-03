@@ -177,13 +177,15 @@ def _get_decorators(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
         if isinstance(dec, ast.Name):
             decorators.append(dec.id)
         elif isinstance(dec, ast.Attribute):
-            decorators.append(f"{_annotation_to_str(dec.value)}.{dec.attr}" or dec.attr)
+            val = _annotation_to_str(dec.value)
+            decorators.append(f"{val}.{dec.attr}" if val else dec.attr)
         elif isinstance(dec, ast.Call):
             if isinstance(dec.func, ast.Name):
                 decorators.append(dec.func.id)
             elif isinstance(dec.func, ast.Attribute):
                 # Use full qualified name (e.g. "app.route") for consistency
-                decorators.append(f"{_annotation_to_str(dec.func.value)}.{dec.func.attr}")
+                val = _annotation_to_str(dec.func.value)
+                decorators.append(f"{val}.{dec.func.attr}" if val else dec.func.attr)
     return decorators
 
 
