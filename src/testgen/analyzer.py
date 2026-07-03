@@ -84,7 +84,8 @@ def _annotation_to_str(node: ast.expr | None) -> str | None:
         parts = [_annotation_to_str(elt) for elt in node.elts]
         return ", ".join(p for p in parts if p)
     if isinstance(node, ast.Index):  # Python 3.8 compat
-        return _annotation_to_str(node.value)
+        # ast.Index was deprecated in Python 3.9, slice is directly accessible
+        return _annotation_to_str(getattr(node, "value", node))
     # Fallback
     try:
         return ast.unparse(node)
@@ -169,8 +170,8 @@ def _parse_params(args: ast.arguments) -> list[ParamInfo]:
     return params
 
 
-def _get_decorators(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
-    """Extract decorator names from a function node."""
+def _get_decorators(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> list[str]:
+    """Extract decorator names from a function or class node."""
     decorators = []
     for dec in node.decorator_list:
         if isinstance(dec, ast.Name):
@@ -181,7 +182,8 @@ def _get_decorators(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
             if isinstance(dec.func, ast.Name):
                 decorators.append(dec.func.id)
             elif isinstance(dec.func, ast.Attribute):
-                decorators.append(dec.func.attr)
+                # Use full qualified name (e.g. "app.route") for consistency
+                decorators.append(f"{_annotation_to_str(dec.func.value)}.{dec.func.attr}")
     return decorators
 
 
