@@ -1,3 +1,10 @@
-src/testgen/__pycache__/
-tests/__pycache__/
-src/testgen_cli.egg-info/
+__pycache__/
+*.pyc
+.coverage
+.coverage.*
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
