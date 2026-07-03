@@ -42,9 +42,11 @@ def _run_git_diff(target: Path, cached: bool = False) -> str:
     if cached:
         cmd.append("--cached")
     try:
+        # target may be a file; cwd must be a directory
+        work_dir = str(target) if target.is_dir() else str(target.parent)
         result = subprocess.run(
             cmd,
-            cwd=str(target),
+            cwd=work_dir,
             capture_output=True,
             text=True,
             timeout=30,
