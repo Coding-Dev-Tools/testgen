@@ -92,9 +92,11 @@ class TestGetChangedFunctions:
         """)
         # Use parse_diff directly instead of get_changed_functions (which needs git)
         from testgen.diff_parser import _FUNC_RE
+
         current_file = None
         changed = set()
         from pathlib import Path
+
         for line in diff.splitlines():
             if line.startswith("+++ b/"):
                 path_str = line[6:].strip()
@@ -120,6 +122,7 @@ class TestGetChangedFunctions:
         from pathlib import Path
 
         from testgen.diff_parser import _CLASS_RE
+
         current_file = None
         changed = set()
         for line in diff.splitlines():
@@ -147,6 +150,7 @@ class TestGetChangedFunctions:
         from pathlib import Path
 
         from testgen.diff_parser import _FUNC_RE
+
         current_file = None
         changed = set()
         for line in diff.splitlines():

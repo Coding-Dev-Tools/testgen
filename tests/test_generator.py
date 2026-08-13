@@ -9,9 +9,11 @@ from testgen.generator import GeneratorConfig, PytestStubGenerator, generate_tes
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def tmp_python_file(tmp_path):
     """Create a temporary Python file with given content."""
+
     def _make(content: str, name: str = "sample.py") -> Path:
         # Create a proper src/package structure for module name resolution
         pkg_dir = tmp_path / "src" / "mypackage"
@@ -20,10 +22,12 @@ def tmp_python_file(tmp_path):
         f = pkg_dir / name
         f.write_text(content, encoding="utf-8")
         return f
+
     return _make
 
 
 # ── Basic generation ─────────────────────────────────────────────────────────
+
 
 class TestBasicGeneration:
     def test_generates_test_for_function(self, tmp_python_file):
@@ -49,10 +53,11 @@ class TestBasicGeneration:
         path = tmp_python_file("def func(): pass")
         module = analyze_file(path)
         code = generate_test(module)
-        assert 'Auto-generated tests' in code
+        assert "Auto-generated tests" in code
 
 
 # ── Function test generation ─────────────────────────────────────────────────
+
 
 class TestFunctionTestGeneration:
     def test_basic_call_test(self, tmp_python_file):
@@ -94,6 +99,7 @@ class TestFunctionTestGeneration:
 
 # ── Class test generation ────────────────────────────────────────────────────
 
+
 class TestClassTestGeneration:
     def test_class_instantiation_test(self, tmp_python_file):
         path = tmp_python_file("class Service:\n    def __init__(self, name: str): pass\n    def run(self): pass")
@@ -126,13 +132,16 @@ class Base(ABC):
         assert "Util.parse" in code
 
     def test_classmethod_test(self, tmp_python_file):
-        path = tmp_python_file("class Config:\n    @classmethod\n    def from_env(cls) -> 'Config':\n        return cls()")
+        path = tmp_python_file(
+            "class Config:\n    @classmethod\n    def from_env(cls) -> 'Config':\n        return cls()"
+        )
         module = analyze_file(path)
         code = generate_test(module)
         assert "Config.from_env" in code
 
 
 # ── Config options ───────────────────────────────────────────────────────────
+
 
 class TestGeneratorConfig:
     def test_disable_edge_cases(self, tmp_python_file):
@@ -178,6 +187,7 @@ class TestGeneratorConfig:
 
 # ── Fixture style generation ────────────────────────────────────────────────
 
+
 class TestFixtureStyle:
     def test_function_style_no_fixtures(self, tmp_python_file):
         """Default function style should not generate @pytest.fixture."""
@@ -202,7 +212,9 @@ class TestFixtureStyle:
 
     def test_class_style_method_uses_fixture(self, tmp_python_file):
         """Class fixture style: method calls use fixture name, not Class(...)."""
-        path = tmp_python_file("class Calc:\n    def __init__(self): pass\n    def add(self, a: int, b: int) -> int:\n        return a + b")
+        path = tmp_python_file(
+            "class Calc:\n    def __init__(self): pass\n    def add(self, a: int, b: int) -> int:\n        return a + b"
+        )
         module = analyze_file(path)
         config = GeneratorConfig(fixture_style="class")
         generator = PytestStubGenerator(config)
@@ -237,6 +249,7 @@ class Base(ABC):
 
 
 # ── Hypothesis property-based test generation ────────────────────────────────
+
 
 class TestHypothesisGeneration:
     def test_hypothesis_disabled_by_default(self, tmp_python_file):

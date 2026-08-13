@@ -8,17 +8,21 @@ from testgen.analyzer import analyze_file
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def tmp_python_file(tmp_path):
     """Create a temporary Python file with given content."""
+
     def _make(content: str, name: str = "sample.py") -> Path:
         f = tmp_path / name
         f.write_text(content, encoding="utf-8")
         return f
+
     return _make
 
 
 # ── Function parsing ─────────────────────────────────────────────────────────
+
 
 class TestAnalyzeFunction:
     def test_simple_function(self, tmp_python_file):
@@ -72,6 +76,7 @@ class TestAnalyzeFunction:
 
 
 # ── Class parsing ────────────────────────────────────────────────────────────
+
 
 class TestAnalyzeClass:
     def test_simple_class(self, tmp_python_file):
@@ -131,6 +136,7 @@ class Point:
 
 
 # ── Module-level ─────────────────────────────────────────────────────────────
+
 
 class TestAnalyzeModule:
     def test_module_docstring(self, tmp_python_file):

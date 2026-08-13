@@ -124,48 +124,58 @@ def _parse_params(args: ast.arguments) -> list[ParamInfo]:
 
     # Positional-only
     for arg in args.posonlyargs:
-        params.append(ParamInfo(
-            name=arg.arg,
-            annotation=_annotation_to_str(arg.annotation),
-            is_positional_only=True,
-        ))
+        params.append(
+            ParamInfo(
+                name=arg.arg,
+                annotation=_annotation_to_str(arg.annotation),
+                is_positional_only=True,
+            )
+        )
 
     # Regular positional + keyword
     defaults_offset = len(args.args) - len(args.defaults)
     for i, arg in enumerate(args.args):
         default_idx = i - defaults_offset
         default = _default_to_str(args.defaults[default_idx]) if default_idx >= 0 else None
-        params.append(ParamInfo(
-            name=arg.arg,
-            annotation=_annotation_to_str(arg.annotation),
-            default=default,
-        ))
+        params.append(
+            ParamInfo(
+                name=arg.arg,
+                annotation=_annotation_to_str(arg.annotation),
+                default=default,
+            )
+        )
 
     # *args
     if args.vararg:
-        params.append(ParamInfo(
-            name=args.vararg.arg,
-            annotation=_annotation_to_str(args.vararg.annotation),
-            is_var_positional=True,
-        ))
+        params.append(
+            ParamInfo(
+                name=args.vararg.arg,
+                annotation=_annotation_to_str(args.vararg.annotation),
+                is_var_positional=True,
+            )
+        )
 
     # Keyword-only
     for i, arg in enumerate(args.kwonlyargs):
         default = _default_to_str(args.kw_defaults[i]) if i < len(args.kw_defaults) and args.kw_defaults[i] else None
-        params.append(ParamInfo(
-            name=arg.arg,
-            annotation=_annotation_to_str(arg.annotation),
-            default=default,
-            is_keyword_only=True,
-        ))
+        params.append(
+            ParamInfo(
+                name=arg.arg,
+                annotation=_annotation_to_str(arg.annotation),
+                default=default,
+                is_keyword_only=True,
+            )
+        )
 
     # **kwargs
     if args.kwarg:
-        params.append(ParamInfo(
-            name=args.kwarg.arg,
-            annotation=_annotation_to_str(args.kwarg.annotation),
-            is_var_keyword=True,
-        ))
+        params.append(
+            ParamInfo(
+                name=args.kwarg.arg,
+                annotation=_annotation_to_str(args.kwarg.annotation),
+                is_var_keyword=True,
+            )
+        )
 
     return params
 
@@ -284,9 +294,7 @@ class ModuleAnalyzer:
         decorators = _get_decorators(node) if hasattr(node, "decorator_list") else []
 
         is_abstract = any(
-            isinstance(stmt, ast.FunctionDef)
-            and "abstractmethod" in _get_decorators(stmt)
-            for stmt in node.body
+            isinstance(stmt, ast.FunctionDef) and "abstractmethod" in _get_decorators(stmt) for stmt in node.body
         )
 
         is_dataclass = "dataclass" in decorators
