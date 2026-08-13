@@ -160,12 +160,20 @@ class PytestStubGenerator:
             test_count += 1
 
         # 2. Return type test
-        if func.return_annotation and self.config.include_type_validation and test_count < self.config.max_tests_per_func:
+        if (
+            func.return_annotation
+            and self.config.include_type_validation
+            and test_count < self.config.max_tests_per_func
+        ):
             tests.append(self._gen_return_type_test(func, func_label, module))
             test_count += 1
 
         # 3. None/empty input test
-        if self.config.include_none_checks and self._has_optional_params(func) and test_count < self.config.max_tests_per_func:
+        if (
+            self.config.include_none_checks
+            and self._has_optional_params(func)
+            and test_count < self.config.max_tests_per_func
+        ):
             tests.append(self._gen_none_input_test(func, func_label, module))
             test_count += 1
 
@@ -180,7 +188,11 @@ class PytestStubGenerator:
             test_count += 1
 
         # 6. Hypothesis property-based test
-        if self.config.include_hypothesis and self._has_hypothesis_params(func) and test_count < self.config.max_tests_per_func:
+        if (
+            self.config.include_hypothesis
+            and self._has_hypothesis_params(func)
+            and test_count < self.config.max_tests_per_func
+        ):
             tests.append(self._gen_hypothesis_test(func, func_label, module))
             test_count += 1
 
@@ -227,11 +239,7 @@ class PytestStubGenerator:
 
     def _has_hypothesis_params(self, func: FuncInfo) -> bool:
         """Check if a function has params that can benefit from Hypothesis."""
-        return any(
-            p.annotation in HYPOTHESIS_STRATEGIES
-            for p in func.params
-            if p.name not in ("self", "cls")
-        )
+        return any(p.annotation in HYPOTHESIS_STRATEGIES for p in func.params if p.name not in ("self", "cls"))
 
     def _gen_hypothesis_test(self, func: FuncInfo, label: str, module: ModuleInfo) -> str:
         """Generate a Hypothesis property-based test stub."""
@@ -263,7 +271,7 @@ class PytestStubGenerator:
             ret = func.return_annotation
             stripped = ret.replace(" | None", "")
             if stripped.startswith("Optional[") and stripped.endswith("]"):
-                stripped = stripped[len("Optional["):-1]
+                stripped = stripped[len("Optional[") : -1]
             if stripped not in ("None", "Any"):
                 base_type = stripped.split("[")[0] if "[" in stripped else stripped
                 if base_type in ("dict", "list", "set", "tuple", "frozenset", "str", "int", "float", "bool", "bytes"):
@@ -314,7 +322,7 @@ class PytestStubGenerator:
         # Handle Union/Optional return types
         stripped = ret.replace(" | None", "")
         if stripped.startswith("Optional[") and stripped.endswith("]"):
-            stripped = stripped[len("Optional["):-1]
+            stripped = stripped[len("Optional[") : -1]
         check_type = stripped
         if check_type in ("None", "Any"):
             return ""
@@ -396,7 +404,9 @@ class PytestStubGenerator:
         ]
 
         if init_method:
-            required = [p for p in init_method.params if p.name != "self" and p.default is None and not p.is_var_keyword]
+            required = [
+                p for p in init_method.params if p.name != "self" and p.default is None and not p.is_var_keyword
+            ]
             if required:
                 lines.append(f"    # Requires: {', '.join(p.name for p in required)}")
 
@@ -559,8 +569,7 @@ class PytestStubGenerator:
     def _has_optional_params(self, func: FuncInfo) -> bool:
         """Check if a function has any optional parameters (besides self/cls)."""
         return any(
-            p.default is not None
-            or (p.annotation and ("Optional" in p.annotation or "| None" in p.annotation))
+            p.default is not None or (p.annotation and ("Optional" in p.annotation or "| None" in p.annotation))
             for p in func.params
             if p.name not in ("self", "cls")
         )

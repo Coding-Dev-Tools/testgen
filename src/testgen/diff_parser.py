@@ -94,13 +94,15 @@ def parse_diff(diff_text: str) -> list[DiffHunk]:
             old_count = int(match.group(2) or "1")
             new_start = int(match.group(3))
             new_count = int(match.group(4) or "1")
-            hunks.append(DiffHunk(
-                file_path=current_file,
-                old_start=old_start,
-                old_count=old_count,
-                new_start=new_start,
-                new_count=new_count,
-            ))
+            hunks.append(
+                DiffHunk(
+                    file_path=current_file,
+                    old_start=old_start,
+                    old_count=old_count,
+                    new_start=new_start,
+                    new_count=new_count,
+                )
+            )
             continue
 
         # Track changed (added) lines
