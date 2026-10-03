@@ -1,6 +1,5 @@
 """Tests for the testgen CLI."""
 
-
 import pytest
 from click.testing import CliRunner
 
@@ -19,7 +18,7 @@ def sample_project(tmp_path):
     src_dir.mkdir(parents=True)
     (src_dir / "__init__.py").write_text("", encoding="utf-8")
     (src_dir / "service.py").write_text(
-        'class Service:\n    def __init__(self, name: str): pass\n    def run(self) -> bool:\n        return True\n\ndef helper(x: int) -> int:\n    return x * 2\n',
+        "class Service:\n    def __init__(self, name: str): pass\n    def run(self) -> bool:\n        return True\n\ndef helper(x: int) -> int:\n    return x * 2\n",
         encoding="utf-8",
     )
     return tmp_path
